@@ -16,7 +16,7 @@ You can also use the following command to convert a V2Ray subscription into Clas
 subconverter.com?url=https://dler.cloud/subscribe/ABCDE&type=meta
 ```
 
-This will create a new file called `ABCDE.meta` in the current directory. This file will contain the converted Clash.Meta subscription.
+This will print converted Clash.Meta subscription.
 
 Finally, you can use the following command to convert a V2Ray subscription into Surfboard format:
 
@@ -24,7 +24,7 @@ Finally, you can use the following command to convert a V2Ray subscription into 
 subconverter.com?url=https://dler.cloud/subscribe/ABCDE&type=surfboard
 ```
 
-This will create a new file called `ABCDE.surfboard` in the current directory. This file will contain the converted Surfboard subscription.
+This will print converted Surfboard subscription.
 
 The `process` parameter can be used to control the output of subconverter. The following values are supported:
 
