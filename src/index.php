@@ -227,26 +227,27 @@ function process_vless_clash(array $decoded_config, $output_type)
             ? htmlentities($decoded_config["params"]["path"], ENT_QUOTES)
             : "/";
         $host = isset($decoded_config["params"]["host"])
-            ? $decoded_config["params"]["host"]
+            ? ',"headers":{"host":"' .$decoded_config["params"]["host"] . '"}'
             : "";
         $opts =
             ',"ws-opts":{"path":"' .
             $path .
-            '","headers":{"host":"' .
+            '"' .
             $host .
-            '"}}';
+            '}';
     } elseif ($network === "grpc") {
-        $servicename = $decoded_config["params"]["serviceName"];
-        $opts = ',"grpc-opts":{"grpc-service-name":"' . $servicename . '"}';
+        $opts = isset($decoded_config["params"]["serviceName"]) ? ',"grpc-opts":{"grpc-service-name":"' . $decoded_config["params"]["serviceName"] . '"}' : "";
     } elseif ($network === "tcp") {
         $opts = "";
     } else {
+        $network = "tcp";
         $opts = "";
     }
     $fingerprint =
         isset($decoded_config["params"]["fp"]) &&
         $decoded_config["params"]["fp"] !== "random" &&
-        $decoded_config["params"]["fp"] !== "ios"
+        $decoded_config["params"]["fp"] !== "ios" &&
+        $decoded_config["params"]["fp"] !== "android"
             ? ',"client-fingerprint":"' . $decoded_config["params"]["fp"] . '"'
             : ',"client-fingerprint":"chrome"';
     $reality =
@@ -536,9 +537,7 @@ function reprocess($input){
     $proxies_array = explode("\n", $input);
     foreach ($proxies_array as $proxy_json){
         $proxy_array = json_decode($proxy_json, true);
-        if (isset($proxy_array['grpc-opts']['grpc-service-name'])){
-            $proxy_array['grpc-opts']['grpc-service-name'] = urlencode($proxy_array['grpc-opts']['grpc-service-name']);
-        }
+        
         $output[] = "  - " . json_encode($proxy_array, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     }
     return str_replace("  - null", "", implode("\n", $output));
@@ -556,7 +555,7 @@ function generate_full_config(
     switch ($type) {
         case "clash":
         case "meta":
-            $proxies = "proxies:\n" . reprocess($proxies);
+            $proxies = "proxies:\n" . $proxies;
             $proxy_group_string = "proxy-groups:";
             $proxy_group_manual =
                 array_to_string(
@@ -628,7 +627,7 @@ try {
     if ($process === "name") {
         echo extract_names(generate_proxies($url, $type), $type);
     } elseif ($process === "full") {
-        echo full_config($url, $type, isset($protocol) ? $protocol : "mix");
+        echo str_replace("\\", "", full_config($url, $type, isset($protocol) ? $protocol : "mix"));
     } else {
         echo generate_proxies($url, $type);
     }
