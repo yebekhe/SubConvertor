@@ -12,6 +12,49 @@ function is_base64_encoded($string)
         return "false";
     }
 }
+function getCipher(array $decoded_config) {
+    return isset($decoded_config["scy"])
+        ? ',"cipher":"' . $decoded_config["scy"] . '"'
+        : ',"cipher":"auto"';
+}
+
+function getUUID(array $decoded_config) {
+    return str_replace(" ", "+", $decoded_config["id"]);
+}
+
+function getVMessTLS(array $decoded_config) {
+    return $decoded_config["tls"] === "tls" ? "true" : "false";
+}
+
+function getOpts(array $decoded_config) {
+    $network = isset($decoded_config["net"]) ? $decoded_config["net"] : "tcp";
+    switch ($network) {
+        case "ws":
+            $path = htmlentities($decoded_config["path"], ENT_QUOTES);
+            $host = $decoded_config["host"];
+            return ',"ws-opts":{"path":"' .
+                $path .
+                '","headers":{"host":"' .
+                $host .
+                '"}}';
+        case "grpc":
+            $servicename = htmlentities($decoded_config["path"], ENT_QUOTES);
+            $mode = $decoded_config["type"];
+            return ',"grpc-opts":{"grpc-service-name":"' .
+                $servicename .
+                '","grpc-mode":"' .
+                $mode .
+                '"}';
+        case "tcp":
+            return "";
+    }
+}
+
+function getVMessAEAD(array $decoded_config) {
+    $alterId = $decoded_config["aid"];
+    return $alterId === "0" ? "true" : "false";
+}
+
 function process_vmess_clash(array $decoded_config, $output_type)
 {
     $name = $decoded_config["ps"];
@@ -20,34 +63,14 @@ function process_vmess_clash(array $decoded_config, $output_type)
     }
     $server = $decoded_config["add"];
     $port = $decoded_config["port"];
-    $cipher = isset($decoded_config["scy"])
-        ? ',"cipher":"' . $decoded_config["scy"] . '"'
-        : ',"cipher":"auto"';
-    $uuid = str_replace(" ", "+", $decoded_config["id"]);
+    $cipher = getCipher($decoded_config);
+    $uuid = getUUID($decoded_config);
     $alterId = $decoded_config["aid"];
-    $tls = $decoded_config["tls"] === "tls" ? "true" : "false";
+    $tls = getVMessTLS($decoded_config);
     $network = isset($decoded_config["net"]) ? $decoded_config["net"] : "tcp";
-    if ($network === "ws") {
-        $path = htmlentities($decoded_config["path"], ENT_QUOTES);
-        $host = $decoded_config["host"];
-        $opts =
-            ',"ws-opts":{"path":"' .
-            $path .
-            '","headers":{"host":"' .
-            $host .
-            '"}}';
-    } elseif ($network === "grpc") {
-        $servicename = htmlentities($decoded_config["path"], ENT_QUOTES);
-        $mode = $decoded_config["type"];
-        $opts =
-            ',"grpc-opts":{"grpc-service-name":"' .
-            $servicename .
-            '","grpc-mode":"' .
-            $mode .
-            '"}';
-    } elseif ($network === "tcp") {
-        $opts = "";
-    }
+    $opts = getOpts($decoded_config);
+    $vmess_aead = getVMessAEAD($decoded_config);
+    
     switch ($output_type) {
         case "clash":
         case "meta":
@@ -73,7 +96,6 @@ function process_vmess_clash(array $decoded_config, $output_type)
             break;
         case "surfboard":
             if ($network === "ws") {
-                $vmes_aead = $alterId === "0" ? "true" : "false";
                 $vm_template =
                     $name .
                     " = vmess, " .
@@ -85,11 +107,11 @@ function process_vmess_clash(array $decoded_config, $output_type)
                     ", ws = true, tls = " .
                     $tls .
                     ", vmess-aead = " .
-                    $vmes_aead .
+                    $vmess_aead .
                     ", ws-path = " .
-                    $path .
+                    htmlentities($decoded_config["path"], ENT_QUOTES) .
                     ', ws-headers = Host:"' .
-                    $host .
+                    $decoded_config["host"] .
                     '", skip-cert-verify = true, tfo = false';
             } else {
                 return null;
@@ -197,85 +219,101 @@ function process_shadowsocks_clash(array $decoded_config, $output_type)
     return $ss_template;
 }
 
-function process_vless_clash(array $decoded_config, $output_type)
-{
+function is_valid_uuid($uuid_string) {
+    $pattern = '/^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[1-5][0-9A-Fa-f]{3}-[89ABab][0-9A-Fa-f]{3}-[0-9A-Fa-f]{12}$/i';
+    return (bool) preg_match($pattern, $uuid_string);
+  }
+
+function getPort(array $decoded_config) {
+    return isset($decoded_config["port"]) && $decoded_config["port"] !== "" ? $decoded_config["port"] : 443;
+}
+
+function getSni(array $decoded_config) {
+    return isset($decoded_config["params"]["sni"]) ? ',"servername":"' . $decoded_config["params"]["sni"] . '"' : "";
+}
+
+function getTls(array $decoded_config) {
+    return isset($decoded_config["params"]["security"]) && $decoded_config["params"]["security"] === "tls" ? "true" : "false";
+}
+
+function getFlow(array $decoded_config) {
+    return isset($decoded_config["params"]["flow"]) ? ',"flow":"xtls-rprx-vision"' : "";
+}
+
+function getNetwork(array $decoded_config) {
+    return isset($decoded_config["params"]["type"]) ? $decoded_config["params"]["type"] : "tcp";
+}
+
+function getWsOpts(array $decoded_config) {
+    if ($decoded_config["params"]["type"] !== "ws") {
+        return "";
+    }
+    $path = isset($decoded_config["params"]["path"]) ? htmlentities($decoded_config["params"]["path"], ENT_QUOTES) : "/";
+    $host = isset($decoded_config["params"]["host"]) ? ',"headers":{"host":"' .$decoded_config["params"]["host"] . '"}' : "";
+    return ',"ws-opts":{"path":"' . $path . '"' . $host . '}';
+}
+
+function getGrpcOpts(array $decoded_config) {
+    if ($decoded_config["params"]["type"] !== "grpc") {
+        return "";
+    }
+    return isset($decoded_config["params"]["serviceName"]) ? ',"grpc-opts":{"grpc-service-name":"' . $decoded_config["params"]["serviceName"] . '"}' : "";
+}
+
+function getClientFingerprint(array $decoded_config) {
+    if (!isset($decoded_config["params"]["fp"])) {
+        return ',"client-fingerprint":"chrome"';
+    }
+    $fp = $decoded_config["params"]["fp"];
+    if (in_array($fp, ["random", "ios", "android"])) {
+        return ',"client-fingerprint":"chrome"';
+    }
+    return ',"client-fingerprint":"' . $fp . '"';
+}
+
+function getRealityOpts(array $decoded_config) {
+    if (!isset($decoded_config["params"]["security"]) || $decoded_config["params"]["security"] !== "reality") {
+        return "";
+    }
+    $pbk = $decoded_config["params"]["pbk"];
+    $sid = isset($decoded_config["params"]["sid"]) && $decoded_config["params"]["sid"] !== "" ? ',"short-id":"' . $decoded_config["params"]["sid"] . '"' : "";
+    $fingerprint = getClientFingerprint($decoded_config);
+    return ',"reality-opts":{"public-key":"' . $pbk . '"' . $sid . $fingerprint . "}";
+}
+
+function getUsername(array $decoded_config){
+    if (is_valid_uuid($decoded_config["username"]) === false){
+        return null;
+    }
+    return $decoded_config["username"];
+}
+
+function process_vless_clash(array $decoded_config, $output_type) {
     $name = $decoded_config["hash"];
     if ($name === "") {
         return null;
     }
     $server = $decoded_config["hostname"];
-    $port = $decoded_config["port"];
-    $username = $decoded_config["username"];
-    $sni = isset($decoded_config["params"]["sni"])
-        ? ',"servername":"' . $decoded_config["params"]["sni"] . '"'
-        : "";
-    $tls =
-        isset($decoded_config["params"]["security"]) &&
-        $decoded_config["params"]["security"] === "tls"
-            ? "true"
-            : "false";
-    $flow =
-        isset($decoded_config["params"]["flow"]) &&
-        $decoded_config["params"]["flow"] !== ""
-            ? ',"flow":"' . $decoded_config["params"]["flow"] . '"'
-            : "";
-    $network = isset($decoded_config["params"]["type"])
-        ? $decoded_config["params"]["type"]
-        : "tcp";
-    if ($network === "ws") {
-        $path = isset($decoded_config["params"]["path"])
-            ? htmlentities($decoded_config["params"]["path"], ENT_QUOTES)
-            : "/";
-        $host = isset($decoded_config["params"]["host"])
-            ? ',"headers":{"host":"' .$decoded_config["params"]["host"] . '"}'
-            : "";
-        $opts =
-            ',"ws-opts":{"path":"' .
-            $path .
-            '"' .
-            $host .
-            '}';
-    } elseif ($network === "grpc") {
-        $opts = isset($decoded_config["params"]["serviceName"]) ? ',"grpc-opts":{"grpc-service-name":"' . $decoded_config["params"]["serviceName"] . '"}' : "";
-    } elseif ($network === "tcp") {
-        $opts = "";
-    } else {
-        $network = "tcp";
-        $opts = "";
+    $port = getPort($decoded_config);
+    $username = getUsername($decoded_config);
+    if (is_null($username)){
+        return null;
     }
-    $fingerprint =
-        isset($decoded_config["params"]["fp"]) &&
-        $decoded_config["params"]["fp"] !== "random" &&
-        $decoded_config["params"]["fp"] !== "ios" &&
-        $decoded_config["params"]["fp"] !== "android"
-            ? ',"client-fingerprint":"' . $decoded_config["params"]["fp"] . '"'
-            : ',"client-fingerprint":"chrome"';
-    $reality =
-        isset($decoded_config["params"]["security"]) &&
-        $decoded_config["params"]["security"] === "reality"
-            ? "true"
-            : "false";
-    if ($reality === "true") {
-        $pbk = $decoded_config["params"]["pbk"];
-        $sid =
-            isset($decoded_config["params"]["sid"]) &&
-            $decoded_config["params"]["sid"] !== ""
-                ? ',"short-id":"' . $decoded_config["params"]["sid"] . '"'
-                : "";
-        $tls = "true";
-        $fingerprint =
-            isset($decoded_config["params"]["fp"]) &&
-            $decoded_config["params"]["fp"] !== "random" &&
-            $decoded_config["params"]["fp"] !== "ios"
-                ? ',"client-fingerprint":"' .
-                    $decoded_config["params"]["fp"] .
-                    '"'
-                : ',"client-fingerprint":"chrome"';
-        $reality_opts =
-            ',"reality-opts":{"public-key":"' . $pbk . '"' . $sid . "}";
-    } else {
-        $reality_opts = "";
+    $sni = getSni($decoded_config);
+    $tls = getTls($decoded_config);
+    $flow = getFlow($decoded_config);
+    $network = getNetwork($decoded_config);
+    $opts = "";
+    switch ($network) {
+        case "ws":
+            $opts = getWsOpts($decoded_config);
+            break;
+        case "grpc":
+            $opts = getGrpcOpts($decoded_config);
+            break;
     }
+    $fingerprint = getClientFingerprint($decoded_config);
+    $reality_opts = getRealityOpts($decoded_config);
 
     switch ($output_type) {
         case "meta":
@@ -409,11 +447,28 @@ function extract_names($configs, $type)
 
 function full_config($input, $type, $protocol = "mix")
 {
-    $surf_url =
-        "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/surfboard/" .
-        $protocol;
+    $surf_url = "https://raw.githubusercontent.com/yebekhe/TelegramV2rayCollector/main/surfboard/" . $protocol;
 
-    $config_start = [
+    $config_start = get_config_start($type, $surf_url);
+    $config_proxy_group = get_config_proxy_group($type);
+    $config_proxy_rules = get_config_proxy_rules($type);
+
+    $proxies = generate_proxies($input, $type);
+    $configs_name = extract_names($proxies, $type);
+    $full_configs = generate_full_config(
+        $config_start,
+        $proxies,
+        $config_proxy_group,
+        $config_proxy_rules,
+        $configs_name,
+        $type
+    );
+    return $full_configs;
+}
+
+function get_config_start($type, $surf_url)
+{
+    return [
         "clash" => [
             "port: 7890",
             "socks-port: 7891",
@@ -444,9 +499,12 @@ function full_config($input, $type, $protocol = "mix")
             "exclude-simple-hostnames = true",
             "enhanced-mode-by-rule = true",
         ],
-    ];
+    ][$type];
+}
 
-    $config_proxy_group = [
+function get_config_proxy_group($type)
+{
+    return [
         "clash" => [
             "proxy-groups:" => [
                 "MANUAL" => [
@@ -486,7 +544,7 @@ function full_config($input, $type, $protocol = "mix")
                     "  - name: URL-TEST",
                     "    type: url-test",
                     "    url: http://www.gstatic.com/generate_204",
-                    "    interval: 300",
+                    "    interval: 60",
                     "    tolerance: 50",
                     "    proxies:",
                 ],
@@ -494,7 +552,7 @@ function full_config($input, $type, $protocol = "mix")
                     "  - name: FALLBACK",
                     "    type: fallback",
                     "    url: http://www.gstatic.com/generate_204",
-                    "    interval: 300",
+                    "    interval: 60",
                     "    proxies:",
                 ],
             ],
@@ -506,25 +564,16 @@ function full_config($input, $type, $protocol = "mix")
                 "FALLBACK = fallback,",
             ],
         ],
-    ];
+    ][$type];
+}
 
-    $config_proxy_rules = [
+function get_config_proxy_rules($type)
+{
+    return [
         "clash" => ["rules:", " - GEOIP,IR,DIRECT", " - MATCH,MANUAL"],
         "meta" => ["rules:", " - GEOIP,IR,DIRECT", " - MATCH,MANUAL"],
         "surfboard" => ["[Rule]", "GEOIP,IR,DIRECT", "FINAL,MANUAL"],
-    ];
-
-    $proxies = generate_proxies($input, $type);
-    $configs_name = extract_names($proxies, $type);
-    $full_configs = generate_full_config(
-        $config_start[$type],
-        $proxies,
-        $config_proxy_group[$type],
-        $config_proxy_rules[$type],
-        $configs_name,
-        $type
-    );
-    return $full_configs;
+    ][$type];
 }
 
 function array_to_string($input)
