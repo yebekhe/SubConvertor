@@ -30,7 +30,7 @@ The `process` parameter can be used to control the output of subconverter. The f
 
 * `name`: Only print the names of the converted proxies.
 * `full`: Get the full config of the converted proxies.
-* `proxy`: Just give the proxy converted to the desired format.
+* `proxies`: Just give the proxy converted to the desired format.
 
 For example, the following command will only print the names of the converted proxies:
 
@@ -47,5 +47,5 @@ subconverter.com?url=https://dler.cloud/subscribe/ABCDE&type=clash&process=full
 The following command will just give the proxy converted to Clash format:
 
 ```
-subconverter.com?url=https://dler.cloud/subscribe/ABCDE&type=clash&process=empty
+subconverter.com?url=https://dler.cloud/subscribe/ABCDE&type=clash&process=proxies
 ```
