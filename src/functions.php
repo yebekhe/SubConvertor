@@ -101,15 +101,6 @@ function ParseShadowsocks($config_str)
     return $server;
 }
 
-/** Check if subscription is base64 encoded or not */
-function is_base64_encoded($string)
-{
-    if (base64_encode(base64_decode($string, true)) === $string) {
-        return "true";
-    } else {
-        return "false";
-    }
-}
 
 function is_number_with_dots($s)
 {
@@ -151,4 +142,33 @@ function is_valid_address($address)
         }
     }
     return false;
+}
+
+function numberToEmoji($number) {
+    $map = array(
+        '0' => '0️⃣',
+        '1' => '1️⃣',
+        '2' => '2️⃣',
+        '3' => '3️⃣',
+        '4' => '4️⃣',
+        '5' => '5️⃣',
+        '6' => '6️⃣',
+        '7' => '7️⃣',
+        '8' => '8️⃣',
+        '9' => '9️⃣'
+    );
+    
+    $emoji = "";
+    $digits = str_split($number);
+    
+    foreach ($digits as $digit) {
+        if (count($digits) === 1) {
+            $emoji = $map['0'];
+        }
+        if (isset($map[$digit])) {
+            $emoji .= $map[$digit];
+        }
+    }
+    
+    return $emoji;
 }
